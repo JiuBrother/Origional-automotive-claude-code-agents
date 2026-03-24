@@ -51,14 +51,20 @@ cd automotive-claude-code-agents
 # 2. Preview what will be installed (no changes made)
 ./install.sh --dry-run
 
-# 3. Install into your existing ~/.claude workspace
-./install.sh
+# 3. RECOMMENDED: Install to your automotive project (avoids token overhead)
+./install.sh --project ~/my-automotive-project --modules adas,safety
+
+# OR: Install globally with selective modules
+./install.sh --modules adas,battery
+
+# OR: Lightweight install (minimal context)
+./install.sh --lightweight
 
 # 4. Start using it immediately
 claude "Help me design an AUTOSAR Adaptive service for camera fusion"
 ```
 
-That's it. Your existing Claude Code workspace (settings, agents, hooks) is **never modified**. All automotive content is namespaced with an `automotive-` prefix and tracked in a manifest for clean removal.
+**⚠️ Token Usage Note:** Global installation (`~/.claude`) loads all content into context for every conversation. For best performance, use `--project` for automotive work or `--modules` to install only needed domains. See [Token Optimization Guide](docs/TOKEN_OPTIMIZATION.md).
 
 ```bash
 # Check what's installed

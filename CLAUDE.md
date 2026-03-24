@@ -8,11 +8,17 @@ Automotive software development extension for Claude Code. Appends to your exist
 # Preview what will be installed (no changes made)
 ./install.sh --dry-run
 
-# Append automotive content to your existing ~/.claude workspace
-./install.sh
+# RECOMMENDED: Project-specific install (isolates context, zero token overhead)
+./install.sh --project /path/to/your/project --modules adas,safety
 
-# Or install to a specific project
-./install.sh --project /path/to/your/project
+# Modular install (only selected domains)
+./install.sh --modules adas,battery,diagnostics
+
+# Lightweight install (minimal context, no knowledge-base)
+./install.sh --lightweight
+
+# Full global install (⚠️ high token usage for all conversations)
+./install.sh
 
 # Check what's installed
 ./install.sh --status
@@ -20,6 +26,14 @@ Automotive software development extension for Claude Code. Appends to your exist
 # Clean removal of only automotive components
 ./install.sh --uninstall
 ```
+
+**Token Optimization:**
+- `--project` installs to project-specific `.claude/` (RECOMMENDED - zero token overhead for non-automotive work)
+- `--modules` installs only specified domains (e.g., `adas,battery,safety`)
+- `--lightweight` skips heavy knowledge-base (~60-70% token reduction)
+- Global install loads ALL content into EVERY conversation (not recommended)
+
+See [Token Optimization Guide](docs/TOKEN_OPTIMIZATION.md) for details.
 
 **Safety guarantees:**
 - Your settings.json is NEVER modified

@@ -31,6 +31,9 @@ NAMESPACE="automotive"
 MANIFEST_FILE=""
 INSTALLED_COUNT=0
 SKIPPED_COUNT=0
+MODULES=""
+LIGHTWEIGHT=false
+ALL_MODULES="adas autosar battery cybersecurity diagnostics functional-safety powertrain v2x cloud-native sdv ecu-systems hpc zonal emerging-tech manufacturing"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -53,11 +56,22 @@ Append automotive Claude Code agents into an existing workspace.
 This installer NEVER replaces your existing settings, agents, or hooks.
 
 Options:
-  --project DIR    Install to project-specific .claude/ directory
-  --dry-run        Preview what would be installed without making changes
-  --uninstall      Remove only automotive-prefixed components
-  --status         Show what automotive components are currently installed
-  -h, --help       Show this help message
+  --project DIR       Install to project-specific .claude/ directory
+  --modules LIST      Install only specified modules (comma-separated)
+                      Available: adas, autosar, battery, cybersecurity, diagnostics,
+                                 functional-safety, powertrain, v2x, cloud-native, sdv,
+                                 ecu-systems, hpc, zonal, emerging-tech, manufacturing
+  --lightweight       Install minimal set (no knowledge-base, reduced context)
+  --dry-run           Preview what would be installed without making changes
+  --uninstall         Remove only automotive-prefixed components
+  --status            Show what automotive components are currently installed
+  -h, --help          Show this help message
+
+Token Usage Optimization:
+  ⚠ Global install (~/.claude) loads ALL content into context for EVERY conversation.
+  ✓ Use --project for automotive-specific work (isolated context)
+  ✓ Use --modules to install only needed domains
+  ✓ Use --lightweight for minimal footprint
 
 Safety guarantees:
   - Your settings.json is NEVER modified (merge snippet provided separately)
@@ -67,11 +81,12 @@ Safety guarantees:
   - Backup created before any changes
 
 Examples:
-  $(basename "$0")                              # Append to ~/.claude
-  $(basename "$0") --project ~/my-ecu-project   # Project-specific install
-  $(basename "$0") --dry-run                    # Preview only
-  $(basename "$0") --uninstall                  # Remove automotive content
-  $(basename "$0") --status                     # Check installation status
+  $(basename "$0") --project ~/my-ecu-project              # Project-specific (RECOMMENDED)
+  $(basename "$0") --modules adas,battery                  # Only ADAS + Battery modules
+  $(basename "$0") --lightweight                           # Minimal install, low tokens
+  $(basename "$0") --dry-run                               # Preview only
+  $(basename "$0") --uninstall                             # Remove automotive content
+  $(basename "$0") --status                                # Check installation status
 EOF
     exit 0
 }
@@ -84,6 +99,14 @@ while [[ $# -gt 0 ]]; do
         --project)
             PROJECT_DIR="$2"
             shift 2
+            ;;
+        --modules)
+            MODULES="$2"
+            shift 2
+            ;;
+        --lightweight)
+            LIGHTWEIGHT=true
+            shift
             ;;
         --dry-run)
             DRY_RUN=true
@@ -150,6 +173,20 @@ manifest_add() {
     if ! $DRY_RUN; then
         echo "$path" >> "$MANIFEST_FILE"
     fi
+}
+
+# ---------------------------------------------------------------------------
+# Module filtering — check if a module should be installed
+# ---------------------------------------------------------------------------
+should_install_module() {
+    local module="$1"
+
+    # Install all if no modules specified
+    [[ -z "$MODULES" ]] && return 0
+
+    # Check if module is in the comma-separated list
+    echo ",$MODULES," | grep -qi ",$module,"
+    return $?
 }
 
 # ---------------------------------------------------------------------------
@@ -286,6 +323,13 @@ install_agents() {
         basename_noext=$(basename "$yaml_file" .yaml)
         local category
         category=$(basename "$(dirname "$yaml_file")")
+
+        # Module filtering
+        if ! should_install_module "$category"; then
+            debug "Skipping agent: $category/$basename_noext (module filter)"
+            continue
+        fi
+
         local dest_name="${NAMESPACE}-${category}-${basename_noext}.md"
         local dest_path="${dest_dir}/${dest_name}"
 
@@ -359,6 +403,13 @@ install_commands() {
         basename_noext=$(basename "$sh_file" .sh)
         local category
         category=$(basename "$(dirname "$sh_file")")
+
+        # Module filtering
+        if ! should_install_module "$category"; then
+            debug "Skipping command: $category/$basename_noext (module filter)"
+            continue
+        fi
+
         local dest_name="${category}-${basename_noext}.md"
         local dest_path="${dest_dir}/${dest_name}"
 
@@ -424,6 +475,13 @@ install_skills() {
 
         # Skip templates
         [[ "$category" == "_templates" ]] && continue
+
+        # Module filtering: extract module name from category (e.g., automotive-adas -> adas)
+        local module_name="${category#automotive-}"
+        if ! should_install_module "$module_name"; then
+            debug "Skipping skill category: $category (module filter)"
+            continue
+        fi
 
         local dest_name="${NAMESPACE}-${category}"
         local dest_path="${dest_dir}/${dest_name}"
@@ -545,6 +603,12 @@ install_hooks() {
 # Install knowledge base — symlink as namespaced subdirectory
 # ---------------------------------------------------------------------------
 install_knowledge_base() {
+    # Skip knowledge base in lightweight mode to reduce token usage
+    if $LIGHTWEIGHT; then
+        info "Skipping knowledge-base (lightweight mode)"
+        return
+    fi
+
     local src_dir="${SCRIPT_DIR}/knowledge-base"
     local dest_dir="${TARGET_DIR}/knowledge-base"
 
@@ -702,6 +766,13 @@ if $UNINSTALL; then
 fi
 
 echo -e "  Mode:   ${GREEN}APPEND${NC} (your existing workspace is preserved)"
+if [[ -n "$MODULES" ]]; then
+    echo -e "  Modules: ${CYAN}${MODULES}${NC} (selective install)"
+elif $LIGHTWEIGHT; then
+    echo -e "  Profile: ${YELLOW}LIGHTWEIGHT${NC} (minimal context, no knowledge-base)"
+else
+    echo -e "  Profile: ${CYAN}FULL${NC} (all modules)"
+fi
 echo -e "  Target: ${CYAN}${TARGET_DIR}${NC}"
 echo -e "  Source: ${CYAN}${SCRIPT_DIR}${NC}"
 $DRY_RUN && echo -e "          ${YELLOW}(dry-run — no changes will be made)${NC}"
